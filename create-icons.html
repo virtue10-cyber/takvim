@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8"><title>İkon Oluştur</title></head>
+<body style="font-family:sans-serif;padding:24px;background:#f0f2f5;">
+<h2>📅 Takvim İkonları</h2>
+<p>Aşağıdaki butonlara tıklayarak PNG ikonları indirin ve <code>icon-192.png</code> ile <code>icon-512.png</code> olarak kaydedin.</p>
+<br>
+<button onclick="generate(192)">⬇ icon-192.png indir</button>
+<button onclick="generate(512)" style="margin-left:10px;">⬇ icon-512.png indir</button>
+<br><br>
+<canvas id="c" style="border:1px solid #ccc;border-radius:8px;"></canvas>
+<script>
+function generate(size) {
+  const c = document.getElementById('c');
+  c.width = size; c.height = size;
+  const ctx = c.getContext('2d');
+  const r = size * 0.12;
+  // Background
+  ctx.fillStyle = '#2563eb';
+  roundRect(ctx, 0, 0, size, size, r);
+  ctx.fill();
+  // Calendar body
+  const m = size * 0.14, bw = size - m * 2, bh = size - m * 2;
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, m, m, bw, bh, size * 0.08);
+  ctx.fill();
+  // Header strip
+  ctx.fillStyle = '#2563eb';
+  roundRect(ctx, m, m, bw, bh * 0.32, size * 0.08);
+  ctx.fill();
+  // Fix bottom of header (square)
+  ctx.fillRect(m, m + bh * 0.24, bw, bh * 0.08);
+  // Hanger pins
+  ctx.fillStyle = '#1d4ed8';
+  const pinW = size * 0.06, pinH = size * 0.1, pinR = pinW / 2;
+  const pin1x = m + bw * 0.25 - pinW / 2, pin2x = m + bw * 0.75 - pinW / 2;
+  const pinY = m - pinH * 0.5;
+  roundRect(ctx, pin1x, pinY, pinW, pinH, pinR); ctx.fill();
+  roundRect(ctx, pin2x, pinY, pinW, pinH, pinR); ctx.fill();
+  // "26" text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${size * 0.22}px -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const today = new Date().getDate();
+  ctx.fillText(today, size / 2, m + bh * 0.16);
+  // Day grid dots
+  ctx.fillStyle = '#2563eb';
+  const rows = 2, cols = 4, dotR = size * 0.03;
+  const gridTop = m + bh * 0.48, gridH = bh * 0.44;
+  const gridLeft = m + bw * 0.1, gridW = bw * 0.8;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx = gridLeft + (col + 0.5) * (gridW / cols);
+      const cy = gridTop + (row + 0.5) * (gridH / rows);
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Download
+  const a = document.createElement('a');
+  a.download = `icon-${size}.png`;
+  a.href = c.toDataURL('image/png');
+  a.click();
+}
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+</script>
+</body>
+</html>
