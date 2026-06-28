@@ -326,7 +326,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <!-- Once -->
       <div id="form-once">
-        <div class="fg"><label class="fl">Saat</label><select id="f-hour"></select></div>
+        <div class="fg"><label class="fl">Saat</label><div style="display:flex;gap:6px;align-items:center;"><select id="f-hour" style="flex:1"></select><span style="color:var(--text2);font-weight:700;padding:0 2px;">:</span><select id="f-min" style="flex:1"></select></div></div>
         <div class="fg"><label class="fl">Görev Adı</label><input type="text" id="f-title" placeholder="Ne yapacaksın?" maxlength="80"></div>
         <div class="fg">
           <label class="fl">Kategori</label>
@@ -342,7 +342,7 @@ textarea{resize:vertical;min-height:68px;}
       </div>
       <!-- Repeat -->
       <div id="form-repeat" style="display:none;">
-        <div class="fg"><label class="fl">Saat</label><select id="rf-hour"></select></div>
+        <div class="fg"><label class="fl">Saat</label><div style="display:flex;gap:6px;align-items:center;"><select id="rf-hour" style="flex:1"></select><span style="color:var(--text2);font-weight:700;padding:0 2px;">:</span><select id="rf-min" style="flex:1"></select></div></div>
         <div class="fg"><label class="fl">Görev Adı</label><input type="text" id="rf-title" placeholder="Tekrar eden görev" maxlength="80"></div>
         <div class="fg">
           <label class="fl">Kategori</label>
@@ -480,7 +480,8 @@ textarea{resize:vertical;min-height:68px;}
 <script>
 // ── CONSTANTS ──
 const STORE = 'takvim_v1';
-const HOURS = Array.from({length:15}, (_,i)=>i+7);
+const HOURS = Array.from({length:24}, (_,i)=>i);
+const MINS  = [0,5,10,15,20,25,30,35,40,45,50,55];
 const DAY_N = ['Pazar','Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi'];
 const DAY_S = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
 const MON_S = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
@@ -539,20 +540,37 @@ function repeatActive(rep, dateStr) {
 }
 function repDone(id, d) { return !!data.donemap[`${d}_${id}`]; }
 function setRepDone(id, d, v) { v ? data.donemap[`${d}_${id}`]=true : delete data.donemap[`${d}_${id}`]; }
-function repHour(rep, d) { return parseInt(sessionStorage.getItem(`rph_${d}_${rep.id}`) ?? rep.hour); }
-function setRepHour(rep, d, h) { sessionStorage.setItem(`rph_${d}_${rep.id}`, h); }
+function repTime(rep, d) {
+  const s = sessionStorage.getItem(`rpt_${d}_${rep.id}`);
+  if (s) return parseTimeKey(s);
+  return {h: rep.hour||0, m: rep.minute||0};
+}
+function setRepTime(rep, d, h, m) { sessionStorage.setItem(`rpt_${d}_${rep.id}`, timeKey(h,m)); }
 function repPost(rep, d) { return parseInt(sessionStorage.getItem(`rpp_${d}_${rep.id}`) || '0'); }
 function setRepPost(rep, d, n) { sessionStorage.setItem(`rpp_${d}_${rep.id}`, n); }
+
+// ── TIME KEY HELPERS ──
+function timeKey(h,m){ return `${h}:${m}`; }
+function parseTimeKey(tk){
+  const s = String(tk);
+  if (!s.includes(':')) return {h:parseInt(s)||0, m:0};
+  const [h,m] = s.split(':').map(Number);
+  return {h:h||0, m:m||0};
+}
 
 // ── TASKS FOR DATE ──
 function tasksFor(dateStr) {
   const out = [];
   const dt = data.tasks[dateStr] || {};
-  for (const [h, t] of Object.entries(dt)) out.push({hour:parseInt(h),...t,isRep:false});
+  for (const [tk, t] of Object.entries(dt)) {
+    const {h,m} = parseTimeKey(tk);
+    out.push({hour:h, minute:m, tk:String(tk), ...t, isRep:false});
+  }
   for (const rep of data.repeats) {
     if (!repeatActive(rep, dateStr)) continue;
     if (data.donemap[`skip_${dateStr}_${rep.id}`]) continue;
-    out.push({hour:repHour(rep,dateStr), title:rep.title, cat:rep.cat, done:repDone(rep.id,dateStr),
+    const {h,m} = repTime(rep, dateStr);
+    out.push({hour:h, minute:m, tk:timeKey(h,m), title:rep.title, cat:rep.cat, done:repDone(rep.id,dateStr),
               note:'', postponed:repPost(rep,dateStr), isRep:true, repId:rep.id});
   }
   return out;
@@ -595,26 +613,28 @@ function renderCalendar() {
     if (nowRow) html += `<div class="now-line" style="top:calc(${nm/60*100}%)"></div>`;
     html += `<div class="hour-lbl" onclick="openAddTaskAt(${h})">${p2(h)}:00</div>`;
     html += `<div class="task-slot">`;
-    const rowTasks = byH[h] || [];
+    const rowTasks = (byH[h] || []).sort((a,b)=>a.minute-b.minute);
     if (rowTasks.length===0) {
       html += `<div class="empty-hint" onclick="openAddTaskAt(${h})">+ ekle</div>`;
     } else {
       for (const t of rowTasks) {
-        const priCls = (!t.isRep && pris.includes(t.hour)) ? 'priority' : '';
+        const priCls = (!t.isRep && (pris.includes(t.tk) || pris.includes(t.hour))) ? 'priority' : '';
         const doneCls = t.done ? 'done-card' : '';
-        const key = t.isRep ? `r_${t.repId}` : `t_${h}`;
-        html += `<div class="task-card ${t.cat} ${priCls} ${doneCls}" data-key="${key}" data-h="${h}" onclick="cardTap(event,'${key}',${h})">
+        const key = t.isRep ? `r_${t.repId}` : `t_${t.tk}`;
+        const timeStr = `${p2(t.hour)}:${p2(t.minute)}`;
+        html += `<div class="task-card ${t.cat} ${priCls} ${doneCls}" data-key="${key}" data-tk="${t.tk}" onclick="cardTap(event,'${key}','${t.tk}')">
           <div class="task-title">${t.isRep?'🔁 ':''}${esc(t.title)}</div>
           ${t.note?`<div class="task-note">${esc(t.note)}</div>`:''}
           <div class="task-meta">
             <span class="badge ${t.cat}">${CAT_L[t.cat]||t.cat}</span>
+            <span style="font-size:10px;color:var(--text3);">⏰ ${timeStr}</span>
             ${t.postponed>0?`<span class="badge post">+${t.postponed}x ertelendi</span>`:''}
           </div>
           <div class="task-actions" onclick="event.stopPropagation()">
-            <button title="Tamamla/Geri Al" onclick="toggleDone('${key}',${h})">${t.done?'↩':'✓'}</button>
-            <button title="Odak" onclick="openFocus('${key}',${h})">🎯</button>
-            <button title="Ertele" onclick="postpone('${key}',${h})">⏩</button>
-            <button title="Sil" onclick="deleteTask('${key}',${h})">🗑</button>
+            <button title="Tamamla/Geri Al" onclick="toggleDone('${key}','${t.tk}')">${t.done?'↩':'✓'}</button>
+            <button title="Odak" onclick="openFocus('${key}','${t.tk}')">🎯</button>
+            <button title="Ertele" onclick="postpone('${key}','${t.tk}')">⏩</button>
+            <button title="Sil" onclick="deleteTask('${key}','${t.tk}')">🗑</button>
           </div>
         </div>`;
       }
@@ -642,36 +662,38 @@ function cardTap(e, key, h) {
   if (!was) card.classList.add('show-actions');
 }
 
-function toggleDone(key, h) {
+function toggleDone(key, tk) {
   if (key.startsWith('r_')) {
     const id = key.slice(2);
     setRepDone(id, curDate, !repDone(id, curDate));
   } else {
-    const t = (data.tasks[curDate]||{})[h];
+    const t = (data.tasks[curDate]||{})[tk];
     if (t) t.done = !t.done;
   }
   save(); updateStreaks(); render();
 }
 
-function postpone(key, h) {
+function postpone(key, tk) {
+  const {h, m} = parseTimeKey(tk);
   const nh = h + 1;
-  if (nh > 21) { toast('21:00\'den sonra erteleme yapılamaz'); return; }
+  if (nh > 23) { toast('Daha fazla erteleme yapılamaz'); return; }
+  const ntk = timeKey(nh, m);
   if (key.startsWith('r_')) {
     const rep = data.repeats.find(r=>r.id===key.slice(2));
     if (!rep) return;
-    setRepHour(rep, curDate, nh);
+    setRepTime(rep, curDate, nh, m);
     setRepPost(rep, curDate, repPost(rep, curDate)+1);
   } else {
     const tasks = data.tasks[curDate];
-    if (!tasks||!tasks[h]) return;
-    if (tasks[nh]) { toast('O saatte zaten bir görev var'); return; }
-    tasks[nh] = {...tasks[h], postponed:(tasks[h].postponed||0)+1};
-    delete tasks[h];
+    if (!tasks||!tasks[tk]) return;
+    if (tasks[ntk]) { toast('O saatte zaten bir görev var'); return; }
+    tasks[ntk] = {...tasks[tk], postponed:(tasks[tk].postponed||0)+1};
+    delete tasks[tk];
   }
-  save(); render(); toast(`⏩ ${p2(nh)}:00\'e ertelendi`);
+  save(); render(); toast(`⏩ ${p2(nh)}:${p2(m)}\'e ertelendi`);
 }
 
-function deleteTask(key, h) {
+function deleteTask(key, tk) {
   if (key.startsWith('r_')) {
     const rep = data.repeats.find(r=>r.id===key.slice(2));
     if (!rep) return;
@@ -681,10 +703,10 @@ function deleteTask(key, h) {
       {label:'İptal', cls:'background:var(--surface2);color:var(--text);border:1px solid var(--border);', fn:()=>{}}
     ]);
   } else {
-    const t = (data.tasks[curDate]||{})[h];
+    const t = (data.tasks[curDate]||{})[tk];
     if (!t) return;
     confirm_(`"${t.title}" silinsin mi?`, 'Bu görev kalıcı olarak silinecek.', [
-      {label:'Sil', cls:'background:#EF4444;color:#fff;', fn:()=>{ delete data.tasks[curDate][h]; save(); render(); }},
+      {label:'Sil', cls:'background:#EF4444;color:#fff;', fn:()=>{ delete data.tasks[curDate][tk]; save(); render(); }},
       {label:'İptal', cls:'background:var(--surface2);color:var(--text);border:1px solid var(--border);', fn:()=>{}}
     ]);
   }
@@ -693,24 +715,27 @@ function deleteTask(key, h) {
 // ── SAVE TASK ──
 function saveTask() {
   const h = parseInt(document.getElementById('f-hour').value);
+  const m = parseInt(document.getElementById('f-min').value);
+  const tk = timeKey(h, m);
   const title = document.getElementById('f-title').value.trim();
   const cat = document.querySelector('input[name="f-cat"]:checked').value;
   const note = document.getElementById('f-note').value.trim();
   if (!title) { toast('Görev adı gerekli'); return; }
   if (!data.tasks[curDate]) data.tasks[curDate]={};
-  if (data.tasks[curDate][h]) { toast('Bu saatte zaten bir görev var'); return; }
-  data.tasks[curDate][h] = {title,cat,done:false,note,postponed:0};
+  if (data.tasks[curDate][tk]) { toast('Bu saatte zaten bir görev var'); return; }
+  data.tasks[curDate][tk] = {title,cat,done:false,note,postponed:0};
   save(); closeModal('modal-add'); render(); toast('✓ Görev eklendi');
 }
 
 function saveRepeat() {
   const h = parseInt(document.getElementById('rf-hour').value);
+  const m = parseInt(document.getElementById('rf-min').value);
   const title = document.getElementById('rf-title').value.trim();
   const cat = document.querySelector('input[name="rf-cat"]:checked').value;
   const days = [...document.querySelectorAll('input[name="rf-days"]:checked')].map(cb=>parseInt(cb.value));
   if (!title) { toast('Görev adı gerekli'); return; }
   if (days.length===0) { toast('En az bir gün seç'); return; }
-  data.repeats.push({id:uid(), hour:h, title, cat, days});
+  data.repeats.push({id:uid(), hour:h, minute:m, title, cat, days});
   save();
   document.getElementById('rf-title').value='';
   document.querySelectorAll('input[name="rf-days"]').forEach(cb=>cb.checked=false);
@@ -726,7 +751,7 @@ function openAddTask() {
   document.querySelector('input[name="f-cat"][value="is"]').checked=true;
   openModal('modal-add');
 }
-function openAddTaskAt(h) { openAddTask(); document.getElementById('f-hour').value=h; }
+function openAddTaskAt(h) { openAddTask(); document.getElementById('f-hour').value=h; document.getElementById('f-min').value=0; }
 function openRepeatModal() { fillHourSelects(); switchAddTab('repeat'); renderRepList(); openModal('modal-add'); }
 
 function switchAddTab(tab) {
@@ -745,7 +770,7 @@ function renderRepList() {
       const ds = (r.days||[]).sort((a,b)=>a-b).map(d=>DAY_S[d]).join(', ')
                || (r.freq==='daily'?'Her gün':r.freq==='weekday'?'Hafta içi':'Hafta sonu');
       return `<div class="rep-item">
-        <div class="rep-item-info"><strong>${esc(r.title)}</strong><span>${p2(r.hour)}:00 · ${ds} · ${CAT_L[r.cat]||r.cat}</span></div>
+        <div class="rep-item-info"><strong>${esc(r.title)}</strong><span>${p2(r.hour)}:${p2(r.minute||0)} · ${ds} · ${CAT_L[r.cat]||r.cat}</span></div>
         <button onclick="deleteRepeat('${r.id}')">🗑</button>
       </div>`;
     }).join('') + '</div>';
@@ -762,9 +787,12 @@ function deleteRepeat(id) {
 
 function fillHourSelects() {
   const now = new Date();
-  const def = Math.max(7, Math.min(20, now.getHours()));
-  const opts = HOURS.map(h=>`<option value="${h}">${p2(h)}:00</option>`).join('');
-  ['f-hour','rf-hour'].forEach(id=>{ document.getElementById(id).innerHTML=opts; document.getElementById(id).value=def; });
+  const defH = now.getHours();
+  const defM = Math.floor(now.getMinutes()/5)*5;
+  const hOpts = HOURS.map(h=>`<option value="${h}">${p2(h)}</option>`).join('');
+  const mOpts = MINS.map(m=>`<option value="${m}">${p2(m)}</option>`).join('');
+  ['f-hour','rf-hour'].forEach(id=>{ document.getElementById(id).innerHTML=hOpts; document.getElementById(id).value=defH; });
+  ['f-min','rf-min'].forEach(id=>{ document.getElementById(id).innerHTML=mOpts; document.getElementById(id).value=defM; });
 }
 
 function selDays(preset) {
@@ -783,11 +811,11 @@ function openStartDay() {
   const tasks = tasksFor(curDate);
   if (!tasks.length) { toast('Önce görev ekle'); return; }
   const pris = data.priorities[curDate] || [];
-  document.getElementById('pri-list').innerHTML = tasks.sort((a,b)=>a.hour-b.hour).map(t=>{
-    const sel = !t.isRep && pris.includes(t.hour);
-    const key = t.isRep ? `r_${t.repId}` : `t_${t.hour}`;
-    return `<div class="pri-item ${sel?'sel':''}" data-key="${key}" data-h="${t.hour}" onclick="togglePri(this)">
-      <span class="pri-time">${p2(t.hour)}:00</span>
+  document.getElementById('pri-list').innerHTML = tasks.sort((a,b)=>a.hour-b.hour||(a.minute-b.minute)).map(t=>{
+    const sel = !t.isRep && (pris.includes(t.tk) || pris.includes(t.hour));
+    const key = t.isRep ? `r_${t.repId}` : `t_${t.tk}`;
+    return `<div class="pri-item ${sel?'sel':''}" data-key="${key}" data-tk="${t.tk}" onclick="togglePri(this)">
+      <span class="pri-time">${p2(t.hour)}:${p2(t.minute)}</span>
       <span class="pri-ttl">${esc(t.title)}</span>
       <span class="pri-chk">${sel?'⭐':'○'}</span>
     </div>`;
@@ -801,23 +829,23 @@ function togglePri(el) {
   el.querySelector('.pri-chk').textContent = el.classList.contains('sel') ? '⭐' : '○';
 }
 function savePriorities() {
-  data.priorities[curDate] = [...document.querySelectorAll('#pri-list .pri-item.sel')].map(el=>parseInt(el.dataset.h));
+  data.priorities[curDate] = [...document.querySelectorAll('#pri-list .pri-item.sel')].map(el=>el.dataset.tk);
   save(); closeModal('modal-start'); render(); toast('⭐ Öncelikler kaydedildi');
 }
 function clearPriorities() { delete data.priorities[curDate]; save(); closeModal('modal-start'); render(); toast('Öncelikler sıfırlandı'); }
 
 // ── FOCUS MODE ──
-function openFocus(key, h) {
+function openFocus(key, tk) {
   document.querySelectorAll('.task-card.show-actions').forEach(c=>c.classList.remove('show-actions'));
   let t;
   if (key.startsWith('r_')) {
     const rep = data.repeats.find(r=>r.id===key.slice(2));
     if (!rep) return;
-    t = {title:rep.title, cat:rep.cat, key, h};
+    t = {title:rep.title, cat:rep.cat, key, tk};
   } else {
-    const task = (data.tasks[curDate]||{})[h];
+    const task = (data.tasks[curDate]||{})[tk];
     if (!task) return;
-    t = {title:task.title, cat:task.cat, key, h};
+    t = {title:task.title, cat:task.cat, key, tk};
   }
   focusTask = t;
   document.getElementById('focus-title').textContent = t.title;
@@ -867,7 +895,7 @@ function updateFocusUI() {
   document.getElementById('focus-prog-bar').style.width=(pct*100)+'%';
   document.getElementById('focus-arc').setAttribute('stroke-dashoffset', CIRC*(1-pct));
 }
-function focusDone() { if(focusTask) toggleDone(focusTask.key,focusTask.h); closeFocus(); toast('✓ Görev tamamlandı!'); }
+function focusDone() { if(focusTask) toggleDone(focusTask.key,focusTask.tk); closeFocus(); toast('✓ Görev tamamlandı!'); }
 function closeFocus() { if(focusTimer) clearInterval(focusTimer); focusRunning=false; document.getElementById('focus-ov').classList.remove('open'); }
 
 // ── ALERT SYSTEM ──
