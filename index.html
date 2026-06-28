@@ -409,6 +409,18 @@ textarea{resize:vertical;min-height:68px;}
           <button onclick="setDefaultPomodoro(50)" id="pom-50">50</button>
         </div>
       </div>
+      <!-- Alarm before -->
+      <div class="settings-row">
+        <div><div class="sr-label">⏰ Görev Alarmı</div><div class="sr-sub">Görev başlamadan önce bildir</div></div>
+        <select id="alarm-before-sel" onchange="setAlarmBefore(parseInt(this.value))" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--rs);background:var(--surface2);color:var(--text);font-size:13px;font-weight:600;">
+          <option value="-1">Kapalı</option>
+          <option value="0">Tam saatinde</option>
+          <option value="5">5 dk önce</option>
+          <option value="10">10 dk önce</option>
+          <option value="15">15 dk önce</option>
+          <option value="30">30 dk önce</option>
+        </select>
+      </div>
       <!-- Notification -->
       <div class="settings-action" onclick="requestNotifPermission()">
         <div class="sa-icon">🔔</div>
@@ -493,6 +505,7 @@ let curDate = todayStr();
 let data = loadData();
 let alertDismissedUntil = 0;
 let alertInterval = null;
+let alarmTimers = {};
 let focusTask = null;
 let focusDur = 25 * 60;
 let focusRem = 25 * 60;
@@ -510,7 +523,7 @@ function loadData() {
     d.priorities = d.priorities || {};
     d.streaks  = d.streaks  || {lastDate:'', current:0, best:0};
     d.scores   = d.scores   || {};
-    d.settings = d.settings || {alertSound:true, pomodoroMinutes:25};
+    d.settings = d.settings || {alertSound:true, pomodoroMinutes:25, alarmMinutesBefore:10};
     return d;
   } catch(e) {
     return {tasks:{},repeats:[],donemap:{},priorities:{},streaks:{lastDate:'',current:0,best:0},scores:{},settings:{alertSound:true,pomodoroMinutes:25}};
@@ -583,6 +596,7 @@ function render() {
   updateDateLabel();
   updateStreaks();
   if (document.getElementById('tab-stats').style.display !== 'none') renderStatsTab();
+  if (curDate === todayStr()) scheduleTaskAlarms();
 }
 
 function updateDateLabel() {
@@ -968,6 +982,7 @@ function openSettings() {
   ['15','25','50'].forEach(v=>{
     document.getElementById('pom-'+v).classList.toggle('active', String(s.pomodoroMinutes||25)===v);
   });
+  document.getElementById('alarm-before-sel').value = s.alarmMinutesBefore ?? 10;
   openModal('modal-settings');
 }
 function toggleSound() {
@@ -1125,6 +1140,39 @@ function toast(msg) {
   clearTimeout(_toastT); _toastT=setTimeout(()=>el.classList.remove('show'),2600);
 }
 
+// ── TASK ALARMS ──
+function scheduleTaskAlarms() {
+  Object.values(alarmTimers).forEach(t => clearTimeout(t));
+  alarmTimers = {};
+  const mins = data.settings.alarmMinutesBefore ?? 10;
+  if (mins < 0) return;
+  const today = todayStr();
+  const now = Date.now();
+  for (const t of tasksFor(today)) {
+    if (t.done) continue;
+    const taskTime = new Date();
+    taskTime.setHours(t.hour, t.minute, 0, 0);
+    const fireAt = taskTime.getTime() - mins * 60000;
+    const delay = fireAt - now;
+    if (delay <= 0) continue;
+    const id = t.isRep ? `r_${t.repId}` : `t_${t.tk}`;
+    alarmTimers[id] = setTimeout(() => {
+      const msg = mins > 0 ? `${mins} dakika içinde başlıyor` : 'Şimdi zamanı!';
+      showNotification(`⏰ ${t.title}`, msg);
+      if (soundOn()) beep(2);
+      delete alarmTimers[id];
+    }, delay);
+  }
+}
+
+function setAlarmBefore(mins) {
+  data.settings.alarmMinutesBefore = mins;
+  save();
+  scheduleTaskAlarms();
+  const label = mins < 0 ? 'Alarm kapalı' : mins === 0 ? 'Tam saatinde' : `${mins} dk önce`;
+  toast(`⏰ ${label}`);
+}
+
 // ── UTILS ──
 function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -1138,6 +1186,7 @@ if ('serviceWorker' in navigator) {
 (function init(){
   render();
   scheduleAlerts();
+  scheduleTaskAlarms();
   setInterval(()=>{ if(curDate===todayStr()) render(); }, 60000);
 })();
 </script>
