@@ -1138,20 +1138,39 @@ function scheduleTaskAlarms() {
   const now = Date.now();
   for (const t of tasksFor(today)) {
     if (t.done) continue;
-    const mins = t.alarmBefore;
-    if (mins === undefined || mins === null || mins < 0) continue;
     const taskTime = new Date();
     taskTime.setHours(t.hour, t.minute, 0, 0);
-    const fireAt = taskTime.getTime() - mins * 60000;
-    const delay = fireAt - now;
-    if (delay <= 0) continue;
     const id = t.isRep ? `r_${t.repId}` : `t_${t.tk}`;
-    alarmTimers[id] = setTimeout(() => {
-      const msg = mins > 0 ? `${mins} dakika içinde başlıyor` : 'Şimdi zamanı!';
-      showNotification(`⏰ ${t.title}`, msg);
-      if (soundOn()) beep(2);
-      delete alarmTimers[id];
-    }, delay);
+
+    // Görev başlamadan önce alarm
+    const mins = t.alarmBefore;
+    if (mins !== undefined && mins !== null && mins >= 0) {
+      const delay = taskTime.getTime() - mins * 60000 - now;
+      if (delay > 0) {
+        alarmTimers[id] = setTimeout(() => {
+          const msg = mins > 0 ? `${mins} dakika içinde başlıyor` : 'Şimdi zamanı!';
+          showNotification(`⏰ ${t.title}`, msg);
+          if (soundOn()) beep(2);
+          delete alarmTimers[id];
+        }, delay);
+      }
+    }
+
+    // Görev saatinden 30 dk sonra hâlâ tamamlanmamışsa uyar
+    const missedDelay = taskTime.getTime() + 30 * 60000 - now;
+    if (missedDelay > 0) {
+      const mid = `missed_${id}`;
+      alarmTimers[mid] = setTimeout(() => {
+        const stillUndone = t.isRep
+          ? !repDone(t.repId, todayStr())
+          : !((data.tasks[todayStr()] || {})[t.tk]?.done);
+        if (stillUndone) {
+          showNotification(`⚠️ ${t.title}`, 'Görev tamamlanmadı!');
+          if (soundOn()) beep(3);
+        }
+        delete alarmTimers[mid];
+      }, missedDelay);
+    }
   }
 }
 
