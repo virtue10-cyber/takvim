@@ -337,6 +337,7 @@ textarea{resize:vertical;min-height:68px;}
           </div>
         </div>
         <div class="fg"><label class="fl">Not (isteğe bağlı)</label><textarea id="f-note" placeholder="Toplantı linki, ilaç dozu…" rows="2"></textarea></div>
+        <div class="fg"><label class="fl">⏰ Alarm</label><select id="f-alarm"><option value="-1">Alarm yok</option><option value="0">Tam saatinde</option><option value="5">5 dk önce</option><option value="10" selected>10 dk önce</option><option value="15">15 dk önce</option><option value="30">30 dk önce</option></select></div>
         <button class="mbtn primary" onclick="saveTask()">Kaydet</button>
       </div>
       <!-- Repeat -->
@@ -369,6 +370,7 @@ textarea{resize:vertical;min-height:68px;}
             <label><input type="checkbox" name="rf-days" value="0"><span>Paz</span></label>
           </div>
         </div>
+        <div class="fg"><label class="fl">⏰ Alarm</label><select id="rf-alarm"><option value="-1">Alarm yok</option><option value="0">Tam saatinde</option><option value="5">5 dk önce</option><option value="10" selected>10 dk önce</option><option value="15">15 dk önce</option><option value="30">30 dk önce</option></select></div>
         <button class="mbtn primary" onclick="saveRepeat()">Kaydet</button>
         <div id="rep-list-wrap"></div>
       </div>
@@ -407,18 +409,6 @@ textarea{resize:vertical;min-height:68px;}
           <button onclick="setDefaultPomodoro(25)" id="pom-25">25</button>
           <button onclick="setDefaultPomodoro(50)" id="pom-50">50</button>
         </div>
-      </div>
-      <!-- Alarm before -->
-      <div class="settings-row">
-        <div><div class="sr-label">⏰ Görev Alarmı</div><div class="sr-sub">Görev başlamadan önce bildir</div></div>
-        <select id="alarm-before-sel" onchange="setAlarmBefore(parseInt(this.value))" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--rs);background:var(--surface2);color:var(--text);font-size:13px;font-weight:600;">
-          <option value="-1">Kapalı</option>
-          <option value="0">Tam saatinde</option>
-          <option value="5">5 dk önce</option>
-          <option value="10">10 dk önce</option>
-          <option value="15">15 dk önce</option>
-          <option value="30">30 dk önce</option>
-        </select>
       </div>
       <!-- Notification -->
       <div class="settings-action" onclick="requestNotifPermission()">
@@ -583,7 +573,7 @@ function tasksFor(dateStr) {
     if (data.donemap[`skip_${dateStr}_${rep.id}`]) continue;
     const {h,m} = repTime(rep, dateStr);
     out.push({hour:h, minute:m, tk:timeKey(h,m), title:rep.title, cat:rep.cat, done:repDone(rep.id,dateStr),
-              note:'', postponed:repPost(rep,dateStr), isRep:true, repId:rep.id});
+              note:'', postponed:repPost(rep,dateStr), isRep:true, repId:rep.id, alarmBefore:rep.alarmBefore});
   }
   return out;
 }
@@ -736,7 +726,8 @@ function saveTask() {
   if (!title) { toast('Görev adı gerekli'); return; }
   if (!data.tasks[curDate]) data.tasks[curDate]={};
   if (data.tasks[curDate][tk]) { toast('Bu saatte zaten bir görev var'); return; }
-  data.tasks[curDate][tk] = {title,cat,done:false,note,postponed:0};
+  const alarmBefore = parseInt(document.getElementById('f-alarm').value);
+  data.tasks[curDate][tk] = {title,cat,done:false,note,postponed:0,alarmBefore};
   save(); closeModal('modal-add'); render(); toast('✓ Görev eklendi');
 }
 
@@ -748,7 +739,8 @@ function saveRepeat() {
   const days = [...document.querySelectorAll('input[name="rf-days"]:checked')].map(cb=>parseInt(cb.value));
   if (!title) { toast('Görev adı gerekli'); return; }
   if (days.length===0) { toast('En az bir gün seç'); return; }
-  data.repeats.push({id:uid(), hour:h, minute:m, title, cat, days});
+  const alarmBefore = parseInt(document.getElementById('rf-alarm').value);
+  data.repeats.push({id:uid(), hour:h, minute:m, title, cat, days, alarmBefore});
   save();
   document.getElementById('rf-title').value='';
   document.querySelectorAll('input[name="rf-days"]').forEach(cb=>cb.checked=false);
@@ -981,7 +973,6 @@ function openSettings() {
   ['15','25','50'].forEach(v=>{
     document.getElementById('pom-'+v).classList.toggle('active', String(s.pomodoroMinutes||25)===v);
   });
-  document.getElementById('alarm-before-sel').value = s.alarmMinutesBefore ?? 10;
   openModal('modal-settings');
 }
 function toggleSound() {
@@ -1143,12 +1134,12 @@ function toast(msg) {
 function scheduleTaskAlarms() {
   Object.values(alarmTimers).forEach(t => clearTimeout(t));
   alarmTimers = {};
-  const mins = data.settings.alarmMinutesBefore ?? 10;
-  if (mins < 0) return;
   const today = todayStr();
   const now = Date.now();
   for (const t of tasksFor(today)) {
     if (t.done) continue;
+    const mins = t.alarmBefore;
+    if (mins === undefined || mins === null || mins < 0) continue;
     const taskTime = new Date();
     taskTime.setHours(t.hour, t.minute, 0, 0);
     const fireAt = taskTime.getTime() - mins * 60000;
@@ -1162,14 +1153,6 @@ function scheduleTaskAlarms() {
       delete alarmTimers[id];
     }, delay);
   }
-}
-
-function setAlarmBefore(mins) {
-  data.settings.alarmMinutesBefore = mins;
-  save();
-  scheduleTaskAlarms();
-  const label = mins < 0 ? 'Alarm kapalı' : mins === 0 ? 'Tam saatinde' : `${mins} dk önce`;
-  toast(`⏰ ${label}`);
 }
 
 // ── UTILS ──
