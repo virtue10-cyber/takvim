@@ -241,7 +241,7 @@ README.md           ← bu rehber
 git init
 git add .
 git commit -m "ilk versiyon"
-git remote add origin https://github.com/KULLANICI_ADIN/takvim.git
+git remote add origin https://github.com/virtue10-cyber/takvim.git
 git push -u origin main
 ```
 

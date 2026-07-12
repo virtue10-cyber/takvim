@@ -74,6 +74,31 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 #btn-add{background:#1A1A18;color:#fff;}
 #btn-settings{background:var(--surface);border:1px solid var(--border)!important;color:var(--text);flex:0;min-width:44px;padding:10px;}
 #actions button:active{opacity:.8;transform:scale(.97);}
+/* ─ NOW CARD ─ */
+#now-card{margin:4px 14px 10px;border-radius:var(--r);padding:16px;cursor:pointer;user-select:none;-webkit-user-select:none;transition:.15s;position:relative;overflow:hidden;}
+#now-card:active{transform:scale(.98);}
+#now-card.has-task{color:#fff;}
+#now-card.empty-now{background:var(--surface);border:1.5px dashed var(--border);color:var(--text2);}
+#now-card .nc-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;opacity:.65;}
+#now-card .nc-title{font-size:20px;font-weight:800;line-height:1.25;margin-top:4px;}
+#now-card .nc-next{font-size:12px;font-weight:600;margin-top:8px;opacity:.7;}
+#now-card .nc-check{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:26px;opacity:.85;}
+#now-card.done-now{opacity:.55;}
+#now-card.done-now .nc-title{text-decoration:line-through;}
+/* ─ EVE CARD ─ */
+#eve-card{display:none;margin:4px 14px 10px;border-radius:var(--r);padding:16px;background:#1A1A18;color:#fff;position:relative;}
+#eve-card .ec-title{font-size:16px;font-weight:800;}
+#eve-card .ec-sub{font-size:12px;opacity:.7;margin-top:3px;}
+#eve-card button.ec-go{margin-top:12px;padding:10px 16px;border:none;border-radius:var(--rs);background:#F59E0B;color:#1A1A18;font-size:13px;font-weight:800;cursor:pointer;}
+#eve-card button.ec-x{position:absolute;top:8px;right:10px;background:none;border:none;color:rgba(255,255,255,.6);font-size:20px;cursor:pointer;padding:4px;}
+/* ─ QUICK ADD ─ */
+#qa-fab{position:fixed;right:16px;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);width:56px;height:56px;border-radius:50%;background:#1A1A18;color:#fff;border:none;font-size:26px;font-weight:400;cursor:pointer;z-index:60;box-shadow:var(--sh-md);display:flex;align-items:center;justify-content:center;transition:.15s;}
+#qa-fab:active{transform:scale(.92);}
+#qa-bar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:210;background:var(--surface);padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--border);max-width:680px;margin:0 auto;}
+#qa-bar.open{display:flex;gap:8px;}
+#qa-bar input{flex:1;}
+#qa-bar button{padding:0 18px;border:none;border-radius:var(--rs);background:#1A1A18;color:#fff;font-size:14px;font-weight:800;cursor:pointer;}
+#qa-hint{position:fixed;left:0;right:0;bottom:calc(58px + env(safe-area-inset-bottom));z-index:210;text-align:center;font-size:11px;color:var(--text2);display:none;}
 /* ─ CALENDAR ─ */
 #calendar{padding:0 14px;}
 .hour-row{display:flex;min-height:54px;border-top:1px solid var(--border);position:relative;}
@@ -269,8 +294,16 @@ textarea{resize:vertical;min-height:68px;}
       <button id="btn-start" onclick="openStartDay()">🚀 Günü Başlat</button>
       <button id="btn-repeat" onclick="openRepeatModal()">🔁 Tekrarlayan</button>
       <button id="btn-add" onclick="openAddTask()">➕ Ekle</button>
+      <button id="btn-ics" onclick="exportICS()" style="background:var(--surface);border:1px solid var(--border);color:var(--text);flex:0;min-width:44px;padding:10px;" title="Bugünü Takvime Gönder">📆</button>
       <button id="btn-settings" onclick="openSettings()">⚙️</button>
     </div>
+    <div id="eve-card">
+      <button class="ec-x" onclick="dismissEveCard()">×</button>
+      <div class="ec-title" id="ec-title"></div>
+      <div class="ec-sub">Yarını akşamdan kur — sabah karar yükü olmasın.</div>
+      <button class="ec-go" onclick="planTomorrow()">⭐ Yarın için 3 öncelik seç</button>
+    </div>
+    <div id="now-card" style="display:none;"></div>
     <div id="calendar"></div>
   </div>
 
@@ -285,9 +318,11 @@ textarea{resize:vertical;min-height:68px;}
       <div class="stat-sec">
         <h3>🔥 Seri</h3>
         <div class="streak-row">
-          <div class="streak-box cur"><div class="sv" id="str-cur">0</div><div class="sl">Mevcut</div></div>
-          <div class="streak-box best"><div class="sv" id="str-best">0</div><div class="sl">En İyi</div></div>
+          <div class="streak-box cur"><div class="sv" id="str-cur">0</div><div class="sl">🔥 Mevcut</div></div>
+          <div class="streak-box best"><div class="sv" id="str-best">0</div><div class="sl">🏆 En İyi</div></div>
+          <div class="streak-box"><div class="sv" id="str-freeze">1</div><div class="sl">❄️ Dondurma</div></div>
         </div>
+        <p style="font-size:11px;color:var(--text2);margin-top:8px;">Haftada 1 boş gün seriyi kırmaz — dondurulur.</p>
       </div>
       <div class="stat-sec">
         <h3>📅 Son 7 Gün</h3>
@@ -296,6 +331,10 @@ textarea{resize:vertical;min-height:68px;}
       <div class="stat-sec">
         <h3>📈 Günlük Başarı</h3>
         <div class="score-chart" id="score-chart"></div>
+      </div>
+      <div class="stat-sec" id="postpone-sec" style="display:none;">
+        <h3>🕐 Bu Hafta Ertelenenler</h3>
+        <div id="postpone-list"></div>
       </div>
     </div>
   </div>
@@ -310,6 +349,13 @@ textarea{resize:vertical;min-height:68px;}
     </button>
   </nav>
 </div>
+
+<button id="qa-fab" onclick="openQuickAdd()" aria-label="Hızlı görev ekle">＋</button>
+<div id="qa-bar">
+  <input type="text" id="qa-input" placeholder="Görev yaz, Enter'a bas…" maxlength="80">
+  <button onclick="saveQuickAdd()">Ekle</button>
+</div>
+<div id="qa-hint"></div>
 
 <!-- ADD TASK MODAL -->
 <div class="modal-overlay" id="modal-add">
@@ -580,12 +626,63 @@ function tasksFor(dateStr) {
 
 // ── RENDER ──
 function render() {
+  renderNowCard();
   renderCalendar();
   renderStats();
   updateDateLabel();
   updateStreaks();
+  updateBadge();
   if (document.getElementById('tab-stats').style.display !== 'none') renderStatsTab();
   if (curDate === todayStr()) scheduleTaskAlarms();
+}
+
+// ── NOW CARD ──
+function renderNowCard() {
+  const el = document.getElementById('now-card');
+  if (curDate !== todayStr()) { el.style.display='none'; return; }
+  el.style.display = 'block';
+  const now = new Date(), nh = now.getHours(), nMin = nh*60 + now.getMinutes();
+  const tasks = tasksFor(curDate).sort((a,b)=>(a.hour*60+a.minute)-(b.hour*60+b.minute));
+  const cur = tasks.filter(t => t.hour === nh);
+  const next = tasks.find(t => (t.hour*60+t.minute) > nMin && !t.done);
+  const nextStr = next ? `Sonraki: ${p2(next.hour)}:${p2(next.minute)} — ${esc(next.title)}` : 'Sonraki görev yok';
+  const catBgMap = {is:'var(--is-bg)', saglik:'var(--saglik-bg)', kisisel:'var(--kisisel-bg)', spor:'var(--spor-bg)'};
+
+  if (cur.length > 0) {
+    const t = cur.find(x=>!x.done) || cur[0];
+    const key = t.isRep ? `r_${t.repId}` : `t_${t.tk}`;
+    el.className = 'has-task' + (t.done ? ' done-now' : '');
+    el.style.background = catBgMap[t.cat] || '#1A1A18';
+    el.innerHTML = `
+      <div class="nc-label">Şimdi · ${p2(t.hour)}:${p2(t.minute)}</div>
+      <div class="nc-title">${esc(t.title)}</div>
+      <div class="nc-next">${nextStr}</div>
+      <div class="nc-check">${t.done ? '✓' : '○'}</div>`;
+    el.onclick = () => toggleDone(key, t.tk);
+    bindNowLongPress(el, key, t.tk);
+  } else {
+    el.className = 'empty-now';
+    el.style.background = '';
+    el.innerHTML = `
+      <div class="nc-label">Şimdi</div>
+      <div class="nc-title" style="color:var(--text2);">Bu saat boş</div>
+      <div class="nc-next">${nextStr}</div>`;
+    el.onclick = () => openAddTaskAt(nh);
+    el.oncontextmenu = null;
+  }
+}
+let ncPressTimer = null;
+function bindNowLongPress(el, key, tk) {
+  el.ontouchstart = () => { ncPressTimer = setTimeout(()=>{ ncPressTimer=null; openFocus(key, tk); }, 500); };
+  el.ontouchend = el.ontouchmove = () => { if (ncPressTimer) clearTimeout(ncPressTimer); };
+  el.oncontextmenu = (e) => { e.preventDefault(); openFocus(key, tk); };
+}
+
+// ── BADGE API ──
+function updateBadge() {
+  if (!('setAppBadge' in navigator)) return;
+  const undone = tasksFor(todayStr()).filter(t=>!t.done).length;
+  try { undone > 0 ? navigator.setAppBadge(undone) : navigator.clearAppBadge(); } catch(e){}
 }
 
 function updateDateLabel() {
@@ -631,7 +728,7 @@ function renderCalendar() {
           <div class="task-meta">
             <span class="badge ${t.cat}">${CAT_L[t.cat]||t.cat}</span>
             <span style="font-size:10px;color:var(--text3);">⏰ ${timeStr}</span>
-            ${t.postponed>0?`<span class="badge post">+${t.postponed}x ertelendi</span>`:''}
+            ${t.postponed>0?`<span class="badge post" title="Ertelendi">🕐</span>`:''}
           </div>
           <div class="task-actions" onclick="event.stopPropagation()">
             <button title="Tamamla/Geri Al" onclick="toggleDone('${key}','${t.tk}')">${t.done?'↩':'✓'}</button>
@@ -681,19 +778,24 @@ function postpone(key, tk) {
   const nh = h + 1;
   if (nh > 23) { toast('Daha fazla erteleme yapılamaz'); return; }
   const ntk = timeKey(nh, m);
+  let newCount = 0;
   if (key.startsWith('r_')) {
     const rep = data.repeats.find(r=>r.id===key.slice(2));
     if (!rep) return;
     setRepTime(rep, curDate, nh, m);
-    setRepPost(rep, curDate, repPost(rep, curDate)+1);
+    newCount = repPost(rep, curDate)+1;
+    setRepPost(rep, curDate, newCount);
   } else {
     const tasks = data.tasks[curDate];
     if (!tasks||!tasks[tk]) return;
     if (tasks[ntk]) { toast('O saatte zaten bir görev var'); return; }
-    tasks[ntk] = {...tasks[tk], postponed:(tasks[tk].postponed||0)+1};
+    newCount = (tasks[tk].postponed||0)+1;
+    tasks[ntk] = {...tasks[tk], postponed:newCount};
     delete tasks[tk];
   }
-  save(); render(); toast(`⏩ ${p2(nh)}:${p2(m)}\'e ertelendi`);
+  save(); render();
+  if (newCount >= 3) toast('💡 Bu görev büyük olabilir — ikiye bölmek ister misin?');
+  else toast(`⏩ ${p2(nh)}:${p2(m)}\'e taşındı`);
 }
 
 function deleteTask(key, tk) {
@@ -727,6 +829,7 @@ function saveTask() {
   if (!data.tasks[curDate]) data.tasks[curDate]={};
   if (data.tasks[curDate][tk]) { toast('Bu saatte zaten bir görev var'); return; }
   const alarmBefore = parseInt(document.getElementById('f-alarm').value);
+  localStorage.setItem('last_cat', cat);
   data.tasks[curDate][tk] = {title,cat,done:false,note,postponed:0,alarmBefore};
   save(); closeModal('modal-add'); render(); toast('✓ Görev eklendi');
 }
@@ -746,6 +849,49 @@ function saveRepeat() {
   document.querySelectorAll('input[name="rf-days"]').forEach(cb=>cb.checked=false);
   renderRepList(); render(); toast('✓ Tekrarlayan görev eklendi');
 }
+
+// ── QUICK ADD ──
+function nextFreeSlot() {
+  const taken = new Set(tasksFor(curDate).map(t=>t.hour));
+  const startH = curDate === todayStr() ? new Date().getHours() : 7;
+  for (let h = startH; h <= 23; h++) if (!taken.has(h)) return h;
+  for (let h = startH; h <= 23; h++) { if (!(data.tasks[curDate]||{})[timeKey(h,30)]) return h; }
+  return startH;
+}
+function openQuickAdd() {
+  const h = nextFreeSlot();
+  const cat = localStorage.getItem('last_cat') || 'is';
+  document.getElementById('qa-hint').textContent = `${p2(h)}:00 · ${CAT_L[cat]} — detayları sonra düzenleyebilirsin`;
+  document.getElementById('qa-hint').style.display = 'block';
+  const bar = document.getElementById('qa-bar');
+  bar.classList.add('open');
+  const inp = document.getElementById('qa-input');
+  inp.value = ''; inp.focus();
+}
+function closeQuickAdd() {
+  document.getElementById('qa-bar').classList.remove('open');
+  document.getElementById('qa-hint').style.display = 'none';
+}
+function saveQuickAdd() {
+  const title = document.getElementById('qa-input').value.trim();
+  if (!title) { closeQuickAdd(); return; }
+  const h = nextFreeSlot();
+  const cat = localStorage.getItem('last_cat') || 'is';
+  let tk = timeKey(h, 0);
+  if ((data.tasks[curDate]||{})[tk]) tk = timeKey(h, 30);
+  if (!data.tasks[curDate]) data.tasks[curDate] = {};
+  data.tasks[curDate][tk] = {title, cat, done:false, note:'', postponed:0, alarmBefore:10};
+  save(); closeQuickAdd(); render();
+  toast(`✓ ${p2(h)}:00'e eklendi`);
+}
+document.getElementById('qa-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveQuickAdd();
+  if (e.key === 'Escape') closeQuickAdd();
+});
+document.addEventListener('click', e => {
+  const bar = document.getElementById('qa-bar');
+  if (bar.classList.contains('open') && !bar.contains(e.target) && e.target.id !== 'qa-fab') closeQuickAdd();
+});
 
 // ── MODALS ──
 function openAddTask() {
@@ -986,6 +1132,49 @@ function setDefaultPomodoro(mins) {
   save(); toast(`⏱ Pomodoro ${mins} dk`);
 }
 
+// ── ICS EXPORT (Takvim köprüsü) ──
+function icsEsc(s){ return s.replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
+const ICS_DAYS = ['SU','MO','TU','WE','TH','FR','SA'];
+function exportICS() {
+  const d = curDate.replace(/-/g,'');
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+  let ev = [];
+
+  // Tek seferlik görevler (seçili gün)
+  const dt = data.tasks[curDate] || {};
+  for (const [tk, t] of Object.entries(dt)) {
+    if (t.done) continue;
+    const {h, m} = parseTimeKey(tk);
+    ev.push(icsEvent(`${d}T${p2(h)}${p2(m)}00`, t.title, t.cat, t.note, t.alarmBefore, null, `${curDate}-${tk}`));
+  }
+  // Tekrarlayanlar (RRULE ile bir kez)
+  for (const rep of data.repeats) {
+    const days = rep.days || [];
+    if (!days.length) continue;
+    const byday = days.map(x=>ICS_DAYS[x]).join(',');
+    ev.push(icsEvent(`${d}T${p2(rep.hour)}${p2(rep.minute||0)}00`, rep.title, rep.cat, '', rep.alarmBefore, `RRULE:FREQ=WEEKLY;BYDAY=${byday}`, `rep-${rep.id}`));
+  }
+  if (!ev.length) { toast('Gönderilecek görev yok'); return; }
+
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//takvim//TR','CALSCALE:GREGORIAN', ...ev, 'END:VCALENDAR'].join('\r\n');
+  const blob = new Blob([ics], {type:'text/calendar'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `takvim-${curDate}.ics`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast('📆 Dosyayı açınca Takvim\'e eklenir');
+
+  function icsEvent(dtstart, title, cat, note, alarmBefore, rrule, uid) {
+    const lines = ['BEGIN:VEVENT', `UID:${uid}@takvim`, `DTSTAMP:${stamp}`, `DTSTART:${dtstart}`, 'DURATION:PT1H',
+      `SUMMARY:${icsEsc(title)}`, `CATEGORIES:${CAT_L[cat]||cat}`];
+    if (note) lines.push(`DESCRIPTION:${icsEsc(note)}`);
+    if (rrule) lines.push(rrule);
+    const ab = (alarmBefore !== undefined && alarmBefore !== null && alarmBefore >= 0) ? alarmBefore : 10;
+    lines.push('BEGIN:VALARM','ACTION:DISPLAY',`DESCRIPTION:${icsEsc(title)}`,`TRIGGER:-PT${ab}M`,'END:VALARM','END:VEVENT');
+    return lines.join('\r\n');
+  }
+}
+
 // ── EXPORT / IMPORT ──
 function exportJSON() {
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
@@ -1025,17 +1214,26 @@ function confirmClearData() {
   ]);
 }
 
-// ── STREAKS ──
+// ── STREAKS (donmuş gün destekli) ──
+function weekId(dateStr) { return Math.floor((Date.parse(dateStr+'T12:00:00')/86400000 + 3) / 7); }
+function freezeAvailable() { return data.streaks.freezeWeek !== weekId(todayStr()); }
 function updateStreaks() {
   const today = todayStr(), s = data.streaks;
   const anyDone = tasksFor(today).some(t=>t.done);
   if (anyDone) {
-    if (s.lastDate===today) {}
-    else if (s.lastDate===shiftDate(today,-1)) { s.current++; s.lastDate=today; }
-    else { s.current=1; s.lastDate=today; }
-    if (s.current>s.best) s.best=s.current;
-  } else if (s.lastDate && s.lastDate<shiftDate(today,-1) && s.lastDate!==today) {
-    s.current=0;
+    if (s.lastDate === today) {}
+    else if (s.lastDate === shiftDate(today,-1)) { s.current++; s.lastDate = today; }
+    else if (s.lastDate === shiftDate(today,-2) && freezeAvailable() && s.current > 0) {
+      // Tek boş gün: dondurma hakkı kullanılır, seri kırılmaz
+      s.freezeWeek = weekId(today);
+      s.current++; s.lastDate = today;
+      toast('❄️ Dondurma hakkı kullanıldı — serin devam ediyor');
+    }
+    else { s.current = 1; s.lastDate = today; }
+    if (s.current > s.best) s.best = s.current;
+  } else if (s.lastDate && s.lastDate < shiftDate(today,-2)) {
+    // 2+ boş gün: dondurma da kurtarmaz
+    s.current = 0;
   }
   save();
 }
@@ -1044,7 +1242,26 @@ function updateStreaks() {
 function renderStatsTab() {
   document.getElementById('str-cur').textContent = data.streaks.current;
   document.getElementById('str-best').textContent = data.streaks.best;
-  renderHeatmap(); renderScoreChart(); checkEvening();
+  document.getElementById('str-freeze').textContent = freezeAvailable() ? 1 : 0;
+  renderHeatmap(); renderScoreChart(); renderPostponeStats(); checkEvening();
+}
+function renderPostponeStats() {
+  const today = todayStr();
+  const agg = {};
+  for (let i = 0; i < 7; i++) {
+    const d = shiftDate(today, -i);
+    for (const t of Object.values(data.tasks[d] || {})) {
+      if (t.postponed > 0) agg[t.title] = (agg[t.title]||0) + t.postponed;
+    }
+  }
+  const items = Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const sec = document.getElementById('postpone-sec');
+  if (!items.length) { sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  document.getElementById('postpone-list').innerHTML = items.map(([title,n]) =>
+    `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      <span style="font-weight:600;">${esc(title)}</span><span style="color:var(--text2);">${n}×</span>
+    </div>`).join('');
 }
 function renderHeatmap() {
   const today=todayStr();
@@ -1083,10 +1300,34 @@ function checkEvening() {
   localStorage.setItem(`eve_${today}`,'1');
 }
 function dismissEvening() { document.getElementById('eve-banner').style.display='none'; }
+
+// ── AKŞAM KAPANIŞI (bugün sekmesinde) ──
+function checkEveCard() {
+  const today = todayStr(), h = new Date().getHours();
+  const el = document.getElementById('eve-card');
+  if (h < 20 || localStorage.getItem(`evc_${today}`) || curDate !== today) { el.style.display='none'; return; }
+  const tasks = tasksFor(today);
+  const done = tasks.filter(t=>t.done).length;
+  document.getElementById('ec-title').textContent = `🌙 Bugün ${done}/${tasks.length} ✓`;
+  el.style.display = 'block';
+}
+function dismissEveCard() {
+  localStorage.setItem(`evc_${todayStr()}`, '1');
+  document.getElementById('eve-card').style.display = 'none';
+}
+function planTomorrow() {
+  localStorage.setItem(`evc_${todayStr()}`, '1');
+  document.getElementById('eve-card').style.display = 'none';
+  curDate = shiftDate(todayStr(), 1);
+  render();
+  const tasks = tasksFor(curDate);
+  if (tasks.length === 0) { toast('Önce yarına görev ekle'); return; }
+  openStartDay();
+}
 function jumpTo(d) { curDate=d; switchTab('today'); render(); }
 
 // ── NAVIGATION ──
-function changeDay(delta) { curDate=shiftDate(curDate,delta); render(); checkAlert(); }
+function changeDay(delta) { curDate=shiftDate(curDate,delta); render(); checkAlert(); checkEveCard(); }
 function switchTab(tab) {
   document.getElementById('tab-today').style.display = tab==='today'?'':'none';
   document.getElementById('tab-stats').style.display = tab==='stats'?'':'none';
@@ -1186,9 +1427,10 @@ if ('serviceWorker' in navigator) {
 // ── INIT ──
 (function init(){
   render();
+  checkEveCard();
   scheduleAlerts();
   scheduleTaskAlarms();
-  setInterval(()=>{ if(curDate===todayStr()) render(); }, 60000);
+  setInterval(()=>{ if(curDate===todayStr()){ render(); checkEveCard(); } }, 60000);
 })();
 </script>
 </body>
